@@ -68,8 +68,8 @@ FILE *description;
 FILE *header;
 FILE *source;
 
-static struct generator_state state = {};
-static struct header * headers = NULL;
+static struct generator_state state;
+static struct header * headers;
 
 enum trace_level {
   TRACE_TOKENS    = (1 << 0),
@@ -202,7 +202,7 @@ char * next_token(void) {
   trace(TRACE_TOKENS, "Token %d:%d %s", state.line_num, state.token_num, state.token);
   if ((state.token!= NULL) && (strcmp(state.token, keyword_comment) == 0)) {
     trace(TRACE_TOKENS, "Detected comment %d", state.line_num);
-    while (next_token()) {} // burn all the symbols
+    state.token = NULL; // burn the line
   }
   return state.token;
 }
@@ -211,12 +211,27 @@ char * start_line(void) {
   while (fgets(state.line, sizeof(state.line)/sizeof(state.line[0]), description) != NULL) {//state.line = readline(NULL))) {
       state.line_num++;
     
+      const size_t length = strlen(state.line);
+      if (length > 1 && state.line[length - 2] == '\r') {
+        trace(TRACE_TOKENS, "Discarding carriage return");
+        if (length == 2) { // empty line of just carriage return, loop again
+          continue;
+        }
+        state.line[length - 2] = '\0';
+      } else if (length > 0 && state.line[length - 1] == '\n') {
+        trace(TRACE_TOKENS, "Discarding newline");
+        if (length == 1) { // empty line of just carriage return, loop again
+          continue;
+        }
+        state.line[length - 1] = '\0';
+      }
+
       state.token = strtok(state.line, token_delimiters);
       state.token_num = 1;
-      trace(TRACE_TOKENS, "Token %d:%d %s", state.line_num, state.token_num, state.token);
+      trace(TRACE_TOKENS, "Start of line token %d:%d %s", state.line_num, state.token_num, state.token);
 
       if (state.token != NULL) {
-          break;
+        break;
       }
   }
 
@@ -321,8 +336,8 @@ struct userdata {
   int flags; // flags from the userdata_flags enum
 };
 
-static struct userdata *parsed_userdata = NULL;
-static struct userdata *parsed_ap_objects = NULL;
+static struct userdata *parsed_userdata;
+static struct userdata *parsed_ap_objects;
 
 
 struct dependency {
@@ -332,7 +347,7 @@ struct dependency {
   char *error_msg; // message if the check fails
 };
 
-static struct dependency *parsed_dependencies = NULL;
+static struct dependency *parsed_dependencies;
 
 // lazy helper that allocates a storage buffer and does strcpy for us
 void string_copy(char **dest, const char * src) {
@@ -673,7 +688,7 @@ void handle_operator(struct userdata *data) {
     error(ERROR_USERDATA, "Needed a symbol for the operator");
   }
 
-  enum operator_type operation;
+  enum operator_type operation = OP_ADD;
   if (strcmp(operator, "+") == 0) {
     operation = OP_ADD;
   } else if (strcmp(operator, "-") == 0) {
@@ -1928,7 +1943,7 @@ int main(int argc, char **argv) {
   sanity_check_userdata();
 
   fprintf(source, "#include \"lua_generated_bindings.h\"\n");
-  fprintf(source, "#include \"lua_boxed_numerics.h\"\n");
+  fprintf(source, "#include <AP_Scripting/lua_boxed_numerics.h>\n");
 
   trace(TRACE_GENERAL, "Starting emission");
 
@@ -1980,7 +1995,7 @@ int main(int argc, char **argv) {
   fprintf(header, "#pragma once\n");
   fprintf(header, "// auto generated bindings, don't manually edit.  See README.md for details.\n");
   emit_headers(header);
-  fprintf(header, "#include \"lua/src/lua.hpp\"\n");
+  fprintf(header, "#include <AP_Scripting/lua/src/lua.hpp>\n");
   fprintf(header, "#include <new>\n\n");
   emit_dependencies(header);
   fprintf(header, "\n\n");

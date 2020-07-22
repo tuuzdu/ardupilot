@@ -42,6 +42,7 @@ static const struct {
     float value;
     bool save;
 } sim_defaults[] = {
+    { "BRD_OPTIONS", 0},
     { "AHRS_EKF_TYPE", 10 },
     { "INS_GYR_CAL", 0 },
     { "RC1_MIN", 1000, true },
@@ -427,9 +428,11 @@ void FlightAxis::update(const struct sitl_input &input)
                         state.m_aircraftPositionX_MTR,
                         -state.m_altitudeASL_MTR - home.alt*0.01);
 
-    accel_body(state.m_accelerationBodyAX_MPS2,
-               state.m_accelerationBodyAY_MPS2,
-               state.m_accelerationBodyAZ_MPS2);
+    accel_body = {
+        float(state.m_accelerationBodyAX_MPS2),
+        float(state.m_accelerationBodyAY_MPS2),
+        float(state.m_accelerationBodyAZ_MPS2)
+    };
 
     // accel on the ground is nasty in realflight, and prevents helicopter disarm
     if (!is_zero(state.m_isTouchingGround)) {
@@ -461,7 +464,7 @@ void FlightAxis::update(const struct sitl_input &input)
     Vector3f airspeed3d = dcm.mul_transpose(airspeed_3d_ef);
 
     if (last_imu_rotation != ROTATION_NONE) {
-        airspeed3d = airspeed3d * ahrs_rotation_inv;
+        airspeed3d = airspeed3d * sitl->ahrs_rotation_inv;
     }
     airspeed_pitot = MAX(airspeed3d.x,0);
 

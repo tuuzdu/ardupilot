@@ -10,12 +10,18 @@ import fnmatch
 import gen_stable
 import subprocess
 
+if sys.version_info[0] < 3:
+    running_python3 = False
+else:
+    running_python3 = True
+
 FIRMWARE_TYPES = ["AntennaTracker", "Copter", "Plane", "Rover", "Sub", "AP_Periph"]
 RELEASE_TYPES = ["beta", "latest", "stable", "stable-*", "dirty"]
 
 # mapping for board names to brand name and manufacturer
 brand_map = {
     'Pixhawk4' : ('Pixhawk 4', 'Holybro'),
+    'Pix32v5' :  ('Pix32 v5', 'Holybro'),
     'Durandal' : ('Durandal', 'Holybro'),
     'PH4-mini' : ('Pixhawk 4 Mini', 'Holybro'),
     'KakuteF4' : ('KakuteF4', 'Holybro'),
@@ -40,6 +46,7 @@ brand_map = {
     'Pixracer' : ('PixRacer', 'mRobotics'),
     'mRoX21' : ('mRo X2.1', 'mRobotics'),
     'mRoX21-777' : ('mRo X2.1-777', 'mRobotics'),
+    'mRoNexus' : ('mRo Nexus', 'mRobotics'),
     'TBS-Colibri-F7' : ('Colibri F7', 'TBS'),
     'sparky2' : ('Sparky2', 'TauLabs'),
     'mindpx-v2' : ('MindPX V2', 'AirMind'),
@@ -249,6 +256,9 @@ class ManifestGenerator():
             return "".join(filename.split(".")[-1:])
         # no extension; ensure this is an elf:
         text = subprocess.check_output(["file", "-b", filepath])
+        if running_python3:
+            text = text.decode('ascii')
+
         if re.match("^ELF", text):
             return "ELF"
         print("Unknown file type (%s)" % filepath)
@@ -505,5 +515,8 @@ if __name__ == "__main__":
         print(generator.json())
     else:
         f = open(args.outfile, "w")
-        f.write(generator.json())
+        content = generator.json()
+        if running_python3:
+            content = bytes(content, 'ascii')
+        f.write(content)
         f.close()
